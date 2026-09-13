@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>App de Asistencia</title>
+  <style>
+    /* Diseño nativo tipo Apple: Tonos plomo, grises y azules */
+    :root {
+      --fondo: #1c1c1e;
+      --tarjeta: #2c2c2e;
+      --texto: #f2f2f7;
+      --azul: #0a84ff;
+      --plomo: #636366;
+      --borde: #3a3a3c;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--fondo);
+      color: var(--texto);
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+    .app-container {
+      background-color: var(--tarjeta);
+      width: 100%;
+      max-width: 400px;
+      padding: 30px 20px;
+      border-radius: 24px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      box-sizing: border-box;
+      margin: 20px;
+    }
+    h2 {
+      text-align: center;
+      font-weight: 600;
+      margin-bottom: 25px;
+      font-size: 22px;
+    }
+    label {
+      font-size: 14px;
+      color: #aeaeb2;
+      margin-bottom: 8px;
+      display: block;
+      font-weight: 500;
+    }
+    select {
+      width: 100%;
+      padding: 14px;
+      margin-bottom: 20px;
+      background-color: var(--fondo);
+      border: 1px solid var(--borde);
+      color: var(--texto);
+      border-radius: 12px;
+      font-size: 16px;
+      appearance: none;
+      outline: none;
+    }
+    .botones {
+      display: flex;
+      gap: 12px;
+      margin-top: 10px;
+    }
+    button {
+      flex: 1;
+      padding: 16px;
+      border: none;
+      border-radius: 14px;
+      font-size: 16px;
+      font-weight: 600;
+      color: white;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    button:active { opacity: 0.7; }
+    .btn-in { background-color: var(--azul); }
+    .btn-out { background-color: var(--plomo); }
+    #estado {
+      text-align: center;
+      margin-top: 20px;
+      font-size: 14px;
+      height: 20px;
+    }
+    .loader {
+      display: none;
+      text-align: center;
+      margin-bottom: 15px;
+      color: var(--azul);
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    <h2>Control de Asistencia</h2>
+    
+    <div id="loader" class="loader">Cargando base de datos...</div>
+
+    <label>Instalación</label>
+    <select id="instalacion" onchange="filtrarPersonal()">
+      <option value="">Seleccione recinto...</option>
+    </select>
+
+    <label>Trabajador</label>
+    <select id="personal" disabled>
+      <option value="">Seleccione instalación primero...</option>
+    </select>
+
+    <div class="botones">
+      <button class="btn-in" onclick="registrar('Entrada')">Entrada</button>
+      <button class="btn-out" onclick="registrar('Salida')">Salida</button>
+    </div>
+
+    <div id="estado"></div>
+  </div>
+
+  <script>
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw3JtX7LpABFVT_Wf8ogZ4lWGNKriaaHAuIe9fc6pUAmikAjbrHmcuGqXhiak0c-4bcHQ/exec'; // REEMPLAZAR ESTO
+    let datosPersonal = [];
+
+    // Cargar datos al iniciar
+    window.onload = function() {
+      document.getElementById('loader').style.display = 'block';
+      fetch(SCRIPT_URL + '?accion=obtenerDatos')
+        .then(res => res.json())
+        .then(data => {
+          datosPersonal = data.personal; // Guardamos el personal en memoria
+          
+          let instSelect = document.getElementById('instalacion');
+          data.instalaciones.forEach(inst => {
+            if(inst[0]) {
+              let option = document.createElement('option');
+              option.value = inst[0];
+              // Muestra el nombre y la dirección en el selector
+              option.text = inst[0] + ' (' + inst[1] + ')'; 
+              instSelect.add(option);
+            }
+          });
+          document.getElementById('loader').style.display = 'none';
+        });
+    };
+
+    // Filtrar personal cuando se elige una instalación
+    function filtrarPersonal() {
+      let instalacionElegida = document.getElementById('instalacion').value;
+      let persSelect = document.getElementById('personal');
+      
+      persSelect.innerHTML = '<option value="">Seleccione su nombre...</option>';
+      
+      if(instalacionElegida) {
+        persSelect.disabled = false;
+        datosPersonal.forEach(trabajador => {
+          // Si la instalación asignada coincide con la elegida
+          if(trabajador[1] === instalacionElegida && trabajador[0]) {
+            let option = document.createElement('option');
+            option.value = trabajador[0];
+            option.text = trabajador[0];
+            persSelect.add(option);
+          }
+        });
+      } else {
+        persSelect.disabled = true;
+      }
+    }
+
+    // Registrar asistencia
+    function registrar(tipo) {
+      let instalacion = document.getElementById('instalacion').value;
+      let nombre = document.getElementById('personal').value;
+      let estadoDiv = document.getElementById('estado');
+
+      if(!instalacion || !nombre) {
+        estadoDiv.style.color = "#ff453a"; // Rojo Apple
+        estadoDiv.innerText = "Complete todos los campos.";
+        return;
+      }
+
+      estadoDiv.style.color = "#aeaeb2";
+      estadoDiv.innerText = "Buscando coordenadas GPS...";
+
+      navigator.geolocation.getCurrentPosition(
+        function(pos) {
+          let ubicacion = pos.coords.latitude + "," + pos.coords.longitude;
+          estadoDiv.innerText = "Guardando en el servidor...";
+          
+          let url = SCRIPT_URL + '?accion=registrar&nombre=' + encodeURIComponent(nombre) + 
+                    '&instalacion=' + encodeURIComponent(instalacion) + 
+                    '&tipo=' + tipo + '&ubicacion=' + encodeURIComponent(ubicacion);
+          
+          fetch(url)
+            .then(res => res.json())
+            .then(data => {
+              estadoDiv.style.color = "#32d74b"; // Verde Apple
+              estadoDiv.innerText = "¡" + tipo + " registrada con éxito!";
+              document.getElementById('personal').value = ""; // Limpiar
+            });
+        }, 
+        function(err) {
+          estadoDiv.style.color = "#ff453a";
+          estadoDiv.innerText = "Error GPS. Activa la ubicación en tu celular.";
+        },
+        { enableHighAccuracy: true }
+      );
+    }
+  </script>
+</body>
+</html>
